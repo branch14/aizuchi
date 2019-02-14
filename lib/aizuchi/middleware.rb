@@ -1,40 +1,41 @@
-# (c) 2011 Phil Hofmann <pho@panter.ch>
+# (c) 2011,2019 Phil Hofmann <phil@200ok.ch>
 #
 # after install see config/aizuchi.yml for more information
 
 require 'net/https'
 
 module Aizuchi
-  class Middleware < Struct.new :app, :options
-
+  # The Middleware
+  class Middleware < Struct.new(:app, :options)
     def call(env)
       return app.call(env) unless config['enabled']
-      if env["REQUEST_METHOD"] == "POST" and
-          env["PATH_INFO"] =~ /^\/aizuchi/
+      if env['REQUEST_METHOD'] == 'POST' &&
+         env['PATH_INFO'] =~ %r{^\/aizuchi} &&
+         !config['exclude'].include?(env['PATH_INFO'])
         # proxy
-        request = Rack::Request.new env
+        request = Rack::Request.new(env)
         res = post(config['target'], request.POST.to_json,
                    config['user'], config['password'])
         case res
         when Net::HTTPSuccess
-          [ 200, {}, [] ]
+          [200, {}, []]
         else
-          [ 500, {}, [] ]
+          [500, {}, []]
         end
       else
         # inject
         status, headers, response = app.call(env)
-        if headers["Content-Type"] =~ /text\/html|application\/xhtml\+xml/
-          body = ""
+        if headers['Content-Type'] =~ %r{text\/html|application\/xhtml\+xml}
+          body = ''
           response.each { |part| body << part }
-          index = body.rindex "</body>"
+          index = body.rindex '</body>'
           if index
             body.insert index, data
-            headers["Content-Length"] = body.length.to_s
-            response = [ body ]
+            headers['Content-Length'] = body.length.to_s
+            response = [body]
           end
         end
-        [ status, headers, response ]
+        [status, headers, response]
       end
     end
 
@@ -82,7 +83,7 @@ init:
     def config
       return @config unless @config.nil?
       path = options[:config]
-      raise "no config path given" unless path
+      raise 'no config path given' unless path
       ::File.open(path, 'w') { |f| f.puts default_config } unless ::File.exist?(path)
       @config = ::File.open(path) { |yf| YAML::load(yf) }
     end
@@ -93,7 +94,7 @@ init:
       http.use_ssl = (url.scheme == 'https')
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       request = Net::HTTP::Post.new url.path
-      request["Content-Type"] = "application/json"
+      request['Content-Type'] = 'application/json'
       request.basic_auth user, pass
       request.body = body_str
       response = http.start { |http| http.request(request) }
@@ -123,18 +124,18 @@ __END__
     <% end %>
 
     $(function() { Aizuchi.init(<%= config['init'].to_json %>); });
-  
+
     Aizuchi = {
       settings: {},
       state: "visible",
-  
+
       // returns the root url of the application
       root_url: function() {
         var url = window.location.protocol + "//" + window.location.hostname;
         if(window.location.port != "") { url += ":" + window.location.port; }
         return url;
       },
-  
+
       // build a string, which is posted as the description of the issue
       description: function() {
         var desc = "h1. User Feedback\n\n"
@@ -162,13 +163,14 @@ __END__
         }
         return desc;
       },
-      
+
       subject: function() {
           return $('#aizuchi textarea').val().substring(0, 50) + '...';
       },
-  
+
       markup: function() {
-          return "<div id='aizuchi' onmouseover='Aizuchi.show()'>"
+          return "<div id='aizuchi' class='" + this.settings.extra_classes + "'" +
+              + " onmouseover='Aizuchi.show()'>"
               + "<form>"
               + "<textarea>" + this.settings.text.imperative + "</textarea>"
               + "<div class='buttons'>"
@@ -180,29 +182,31 @@ __END__
               + "<form>"
               + "</div>";
       },
-  
+
       resizeHack: function() {
           $('#aizuchi textarea').height($('#aizuchi').height() - 35);
       },
-  
+
       show: function() {
           if(this.state == 'visible') { return; }
-          $('#aizuchi').animate(this.settings.css.visible, 150, 'swing', function() {
-              Aizuchi.resizeHack();
+          $('#aizuchi').addClass('aizuchi-visible')
+          //$('#aizuchi').animate(this.settings.css.visible, 150, 'swing', function() {
+              //Aizuchi.resizeHack();
               // $('#aizuchi textarea').focus(function() { this.select(); });
               // $('#aizuchi textarea').first().focus();
               Aizuchi.state = 'visible';
-          });
+          //});
       },
-  
+
       hide: function() {
-          $('#aizuchi').animate(this.settings.css.hidden, 150, 'linear', function() {
-              Aizuchi.resizeHack();
+          $('#aizuchi').removeClass('aizuchi-visible')
+          //$('#aizuchi').animate(this.settings.css.hidden, 150, 'linear', function() {
+              //Aizuchi.resizeHack();
               Aizuchi.state = 'hidden';
-          });
+          //});
           // setTimeout(function() { Aizuchi.state = 'hidden'; }, 500);
       },
-  
+
       init: function(hash) {
           var dyn = {
             params: {
@@ -220,22 +224,22 @@ __END__
               Aizuchi.state = 'hidden';
           }, 1000);
       },
-  
+
       responseHandler: function(data, status, request) {},
-  
+
       send: function() {
           this.sendToRedmine();
           this.hide();
           $('#aizuchi textarea').val(this.settings.text.imperative);
       },
-  
+
       sendToRedmine: function(hash) {
           if(typeof hash == undefined) { hash = {}; }
           var data = $.extend({}, this.settings.params, hash);
           var url = data.target_url;
           $.post(url, {"issue": data}, this.responseHandler);
       },
-  
+
       log: function(msg) {
           if(typeof console == undefined) { return; }
           console.log(msg);
@@ -243,40 +247,3 @@ __END__
     };
   })( jQuery );
 </script>
-<style>
-#aizuchi {
-    width: 600px;
-    height: 200px;
-    padding: 10px;
-    -moz-border-radius: 0 15px 15px 0;
-    border-radius: 0 15px 15px 0;
-    position: absolute;
-    background-color: #00bcff;
-    z-index: 999;
-    /*display: none;*/
-    opacity: 0;
-}
-
-#aizuchi textarea {
-    background-color: #c0c0c0;
-    width: 580px;
-    height: 100%;
-    border: 0px;
-    padding: 8px;
-    font-size: 18px;
-    -moz-border-radius: 10px;
-    border-radius: 10px;
-}
-
-#aizuchi .buttons {
-    float: right;
-}
-
-#aizuchi input {
-    margin: 0 5px 0 0;
-}
-
-#aizuchi img {
-    border: none;
-}
-</style>
