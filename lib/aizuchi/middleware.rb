@@ -12,14 +12,13 @@ module Aizuchi
       if env['REQUEST_METHOD'] == 'POST' &&
          env['PATH_INFO'] =~ %r{^\/aizuchi} &&
          !config['exclude'].include?(env['PATH_INFO'])
-        # proxy
-        request = Rack::Request.new(env)
-        res = post(config['target'], request.POST.to_json,
-                   config['user'], config['password'])
-        case res
-        when Net::HTTPSuccess
+        # run handler
+        title = "Feedback on #{env['PATH_INFO']}"
+        text = Rack::Request.new(env).POST.to_yaml
+        begin
+          eval(config['handler'] + '(title, text)')
           [200, {}, []]
-        else
+        rescue
           [500, {}, []]
         end
       else
@@ -88,23 +87,6 @@ init:
       @config = ::File.open(path) { |yf| YAML::load(yf) }
     end
 
-    def post(uri_str, body_str, user=nil , pass=nil)
-      url = URI.parse uri_str
-      http = Net::HTTP.new url.host, url.port
-      http.use_ssl = (url.scheme == 'https')
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      request = Net::HTTP::Post.new url.path
-      request['Content-Type'] = 'application/json'
-      request.basic_auth user, pass
-      request.body = body_str
-      response = http.start { |http| http.request(request) }
-      case response
-      when Net::HTTPSuccess then response
-      else
-        response.error!
-      end
-    end
-
     def data # DATA doesn't work with Rack
       template = ::File.read(__FILE__).gsub(/.*__END__\n/m, '')
       (config['javascripts'] || []).map do |j|
@@ -138,19 +120,19 @@ __END__
 
       // build a string, which is posted as the description of the issue
       description: function() {
-        var desc = "h1. User Feedback\n\n"
+        var desc = "## User Feedback\n\n"
             + $('#aizuchi textarea').val() + "\n\n";
         // meta data
         var referer = document.referrer;
         if(referer == "") { referer = "(no referer)"; }
-        desc += "<pre>"
+        desc += "## Meta data\n\n```\n"
             + "sent from:   " + document.title + "\n"
             + "URL:         " + document.URL + "\n"
             + "referer:     " + referer + "\n"
             + "user agent:  " + navigator.userAgent + "\n"
             + "screen size: " + screen.width + "x" + screen.height
             + ", color depth: " + screen.colorDepth + "\n";
-        desc += "</pre>\n";
+        desc += "```\n";
         desc += "Installed plugins:\n\n";
         // plugins & mimetypes
         for(var pid=0;pid<navigator.plugins.length;pid++) {
@@ -158,7 +140,7 @@ __END__
             desc += "* " + plugin.name + "(" + plugin.description + ")\n";
             for(var mid=0;mid<plugin.length;mid++) {
                 var mime = plugin[mid];
-                desc += "** " + mime.type + " (" + mime.description + ")\n";
+                desc += "  * " + mime.type + " (" + mime.description + ")\n";
             }
         }
         return desc;
