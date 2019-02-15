@@ -1,0 +1,5 @@
+<% if config['jquery_noconflict'] %>
+$.noConflict();
+<% end %>
+
+$(function() { Aizuchi.init(<%= config['init'].to_json %>); });

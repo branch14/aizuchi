@@ -1,0 +1,34 @@
+---
+# Aizuchi -- Instant Feedback
+# Aizuchi depends on jQuery >= 1.4.4
+# upon changing this file you will need to restart your app
+enabled: false
+target: https://your.redmine.instance/issues.xml
+user: feedback
+password: secret
+init:
+  params:
+    project_id: project-handle
+    assigned_to_id: 123
+    tracker_id: 4
+  text:
+    imperative: please type your feedback here
+    submit: submit
+    cancel: cancel
+  css:
+    hidden:
+      top: 150px
+      left: -600px
+      height: 60px
+    visible:
+      top: 150px
+      left: 0px
+      height: 200px
+# uncomment the following two lines, if your project
+# doesn't use jquery already
+# javascripts:
+#   - http://code.jquery.com/jquery-1.5.1.min.js
+# or this line if you want to ship it yourself
+#   - /javascripts/jquery-1.5.1.min.js
+# uncomment the following line, in case your project uses prototype
+# jquery_noconflict: true
